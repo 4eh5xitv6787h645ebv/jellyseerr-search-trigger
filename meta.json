@@ -1,0 +1,18 @@
+{
+    "guid": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+    "name": "Jellyseerr Search Trigger",
+    "description": "Triggers Sonarr/Radarr searches when issues are reported via Jellyseerr. Works alongside Jellyfin Enhanced.",
+    "overview": "Automatically triggers searches in Sonarr/Radarr when issues are reported, with smart logic: single episode = no search, season = search that season, whole show = search all.",
+    "owner": "Jake",
+    "category": "General",
+    "versions": [
+        {
+            "version": "1.0.0.0",
+            "changelog": "Initial release",
+            "targetAbi": "10.10.0.0",
+            "sourceUrl": "",
+            "checksum": "",
+            "timestamp": "2025-12-27T00:00:00Z"
+        }
+    ]
+}
