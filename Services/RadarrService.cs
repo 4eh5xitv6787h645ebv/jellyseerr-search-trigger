@@ -34,6 +34,23 @@ public class RadarrService
     }
 
     /// <summary>
+    /// Ensures the URL has a valid HTTP scheme.
+    /// </summary>
+    private static string EnsureHttpScheme(string url)
+    {
+        if (string.IsNullOrWhiteSpace(url))
+            return url;
+
+        url = url.Trim();
+        if (!url.StartsWith("http://", StringComparison.OrdinalIgnoreCase) &&
+            !url.StartsWith("https://", StringComparison.OrdinalIgnoreCase))
+        {
+            return "http://" + url;
+        }
+        return url;
+    }
+
+    /// <summary>
     /// Triggers a search in Radarr for a movie based on TMDB ID.
     /// </summary>
     public async Task<bool> TriggerSearchAsync(string radarrUrl, string apiKey, int tmdbId)
@@ -46,22 +63,26 @@ public class RadarrService
                 return false;
             }
 
+            // Ensure URL has http:// scheme
+            radarrUrl = EnsureHttpScheme(radarrUrl);
+
             var httpClient = _httpClientFactory.CreateClient();
+            httpClient.Timeout = TimeSpan.FromSeconds(30);
             httpClient.DefaultRequestHeaders.Add("X-Api-Key", apiKey);
 
-            // Find movie by TMDB ID
-            var movieUrl = $"{radarrUrl.TrimEnd('/')}/api/v3/movie";
+            // Find movie by TMDB ID using query parameter (more efficient)
+            var movieUrl = $"{radarrUrl.TrimEnd('/')}/api/v3/movie?tmdbId={tmdbId}";
             var movieResponse = await httpClient.GetAsync(movieUrl);
 
             if (!movieResponse.IsSuccessStatusCode)
             {
-                _logger.LogWarning("Failed to fetch Radarr movies. Status: {StatusCode}", movieResponse.StatusCode);
+                _logger.LogWarning("Failed to fetch Radarr movie. Status: {StatusCode}", movieResponse.StatusCode);
                 return false;
             }
 
             var movieContent = await movieResponse.Content.ReadAsStringAsync();
-            var allMovies = JsonSerializer.Deserialize<List<RadarrMovie>>(movieContent) ?? new List<RadarrMovie>();
-            var movie = allMovies.FirstOrDefault(m => m.TmdbId == tmdbId);
+            var matchingMovies = JsonSerializer.Deserialize<List<RadarrMovie>>(movieContent) ?? new List<RadarrMovie>();
+            var movie = matchingMovies.FirstOrDefault();
 
             if (movie == null)
             {

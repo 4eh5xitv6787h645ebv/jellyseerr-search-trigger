@@ -36,6 +36,10 @@ public class SearchTriggerController : ControllerBase
         {
             configured = !string.IsNullOrEmpty(config?.SonarrApiKey) || !string.IsNullOrEmpty(config?.RadarrApiKey),
             autoSearchEnabled = config?.AutoSearchEnabled ?? true,
+            searchOnEpisode = config?.SearchOnEpisode ?? false,
+            searchOnSeason = config?.SearchOnSeason ?? true,
+            searchOnSeries = config?.SearchOnSeries ?? true,
+            searchOnMovie = config?.SearchOnMovie ?? true,
             sonarrConfigured = !string.IsNullOrEmpty(config?.SonarrUrl) && !string.IsNullOrEmpty(config?.SonarrApiKey),
             radarrConfigured = !string.IsNullOrEmpty(config?.RadarrUrl) && !string.IsNullOrEmpty(config?.RadarrApiKey)
         });
@@ -86,26 +90,65 @@ public class SearchTriggerController : ControllerBase
 
             if (mediaType == "tv" && tvdbId > 0 && !string.IsNullOrWhiteSpace(config.SonarrUrl) && !string.IsNullOrWhiteSpace(config.SonarrApiKey))
             {
+                // Determine the search type and check if it's enabled
+                bool isEpisodeSearch = problemSeason > 0 && problemEpisode > 0;
+                bool isSeasonSearch = problemSeason > 0 && problemEpisode == 0;
+                bool isSeriesSearch = problemSeason == 0 && problemEpisode == 0;
+
+                bool searchEnabled = false;
+                string searchType = "";
+
+                if (isEpisodeSearch)
+                {
+                    searchEnabled = config.SearchOnEpisode;
+                    searchType = "episode";
+                }
+                else if (isSeasonSearch)
+                {
+                    searchEnabled = config.SearchOnSeason;
+                    searchType = "season";
+                }
+                else if (isSeriesSearch)
+                {
+                    searchEnabled = config.SearchOnSeries;
+                    searchType = "series";
+                }
+
+                if (!searchEnabled)
+                {
+                    result = $"Search on {searchType} is disabled in settings";
+                    _logger.LogInformation("[Search Trigger] Skipped: {Result}", result);
+                    return Ok(new { triggered = false, result = result });
+                }
+
                 var sonarrService = new Services.SonarrService(_httpClientFactory, _logger);
                 searchTriggered = await sonarrService.TriggerSearchAsync(
                     config.SonarrUrl,
                     config.SonarrApiKey,
                     tvdbId,
                     problemSeason,
-                    problemEpisode
+                    problemEpisode,
+                    config.SearchOnEpisode
                 );
-                result = searchTriggered ? "Sonarr search triggered" : "Sonarr search failed or skipped";
+                result = searchTriggered ? $"Sonarr {searchType} search triggered" : "Sonarr search failed or skipped";
                 _logger.LogInformation("[Search Trigger] Sonarr result: {Result}", result);
             }
             else if (mediaType == "movie" && tmdbId > 0 && !string.IsNullOrWhiteSpace(config.RadarrUrl) && !string.IsNullOrWhiteSpace(config.RadarrApiKey))
             {
+                if (!config.SearchOnMovie)
+                {
+                    result = "Search on movie is disabled in settings";
+                    _logger.LogInformation("[Search Trigger] Skipped: {Result}", result);
+                    return Ok(new { triggered = false, result = result });
+                }
+
                 var radarrService = new Services.RadarrService(_httpClientFactory, _logger);
                 searchTriggered = await radarrService.TriggerSearchAsync(
                     config.RadarrUrl,
                     config.RadarrApiKey,
                     tmdbId
                 );
-                result = searchTriggered ? "Radarr search triggered" : "Radarr search failed";
+                result = searchTriggered ? "Radarr movie search triggered" : "Radarr search failed";
                 _logger.LogInformation("[Search Trigger] Radarr result: {Result}", result);
             }
             else

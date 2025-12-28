@@ -25,14 +25,57 @@
                             <span>Enable Auto-Search</span>
                         </label>
                         <div class="fieldDescription checkboxFieldDescription">
-                            When enabled, reporting an issue will trigger a search in Sonarr/Radarr.
-                            <br/>
-                            <strong>Search behavior:</strong>
-                            <ul>
-                                <li>Single episode reported = No search (just reports the issue)</li>
-                                <li>Whole season reported = Search that season only</li>
-                                <li>Whole show reported = Search all episodes</li>
-                            </ul>
+                            Master toggle for auto-search functionality. When disabled, no searches will be triggered.
+                        </div>
+                    </div>
+
+                    <div class="sectionTitleContainer flex align-items-center" style="margin-top: 2em;">
+                        <h3 class="sectionTitle">Search Triggers</h3>
+                    </div>
+
+                    <div class="verticalSection">
+                        <p class="sectionDescription">
+                            Choose which types of issue reports should trigger a search in Sonarr/Radarr.
+                        </p>
+                    </div>
+
+                    <div class="checkboxContainer checkboxContainer-withDescription">
+                        <label class="emby-checkbox-label">
+                            <input is="emby-checkbox" type="checkbox" id="SearchOnEpisode" />
+                            <span>Search on Single Episode</span>
+                        </label>
+                        <div class="fieldDescription checkboxFieldDescription">
+                            Trigger an episode search when a single episode issue is reported.
+                        </div>
+                    </div>
+
+                    <div class="checkboxContainer checkboxContainer-withDescription">
+                        <label class="emby-checkbox-label">
+                            <input is="emby-checkbox" type="checkbox" id="SearchOnSeason" />
+                            <span>Search on Whole Season</span>
+                        </label>
+                        <div class="fieldDescription checkboxFieldDescription">
+                            Trigger a season search when a whole season issue is reported.
+                        </div>
+                    </div>
+
+                    <div class="checkboxContainer checkboxContainer-withDescription">
+                        <label class="emby-checkbox-label">
+                            <input is="emby-checkbox" type="checkbox" id="SearchOnSeries" />
+                            <span>Search on Whole Series</span>
+                        </label>
+                        <div class="fieldDescription checkboxFieldDescription">
+                            Trigger a series search when a whole show issue is reported.
+                        </div>
+                    </div>
+
+                    <div class="checkboxContainer checkboxContainer-withDescription">
+                        <label class="emby-checkbox-label">
+                            <input is="emby-checkbox" type="checkbox" id="SearchOnMovie" />
+                            <span>Search on Movie</span>
+                        </label>
+                        <div class="fieldDescription checkboxFieldDescription">
+                            Trigger a movie search when a movie issue is reported.
                         </div>
                     </div>
 
@@ -87,6 +130,10 @@
                     Dashboard.showLoadingMsg();
                     ApiClient.getPluginConfiguration(JellyseerrSearchTriggerConfig.pluginUniqueId).then(function (config) {
                         document.querySelector('#AutoSearchEnabled').checked = config.AutoSearchEnabled;
+                        document.querySelector('#SearchOnEpisode').checked = config.SearchOnEpisode;
+                        document.querySelector('#SearchOnSeason').checked = config.SearchOnSeason;
+                        document.querySelector('#SearchOnSeries').checked = config.SearchOnSeries;
+                        document.querySelector('#SearchOnMovie').checked = config.SearchOnMovie;
                         document.querySelector('#SonarrUrl').value = config.SonarrUrl || '';
                         document.querySelector('#SonarrApiKey').value = config.SonarrApiKey || '';
                         document.querySelector('#RadarrUrl').value = config.RadarrUrl || '';
@@ -101,6 +148,10 @@
                     Dashboard.showLoadingMsg();
                     ApiClient.getPluginConfiguration(JellyseerrSearchTriggerConfig.pluginUniqueId).then(function (config) {
                         config.AutoSearchEnabled = document.querySelector('#AutoSearchEnabled').checked;
+                        config.SearchOnEpisode = document.querySelector('#SearchOnEpisode').checked;
+                        config.SearchOnSeason = document.querySelector('#SearchOnSeason').checked;
+                        config.SearchOnSeries = document.querySelector('#SearchOnSeries').checked;
+                        config.SearchOnMovie = document.querySelector('#SearchOnMovie').checked;
                         config.SonarrUrl = document.querySelector('#SonarrUrl').value;
                         config.SonarrApiKey = document.querySelector('#SonarrApiKey').value;
                         config.RadarrUrl = document.querySelector('#RadarrUrl').value;

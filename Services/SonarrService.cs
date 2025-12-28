@@ -22,6 +22,21 @@ public class SonarrSeries
     public int TvdbId { get; set; }
 }
 
+public class SonarrEpisode
+{
+    [JsonPropertyName("id")]
+    public int Id { get; set; }
+
+    [JsonPropertyName("seasonNumber")]
+    public int SeasonNumber { get; set; }
+
+    [JsonPropertyName("episodeNumber")]
+    public int EpisodeNumber { get; set; }
+
+    [JsonPropertyName("title")]
+    public string Title { get; set; } = string.Empty;
+}
+
 public class SonarrService
 {
     private readonly IHttpClientFactory _httpClientFactory;
@@ -34,12 +49,29 @@ public class SonarrService
     }
 
     /// <summary>
+    /// Ensures the URL has a valid HTTP scheme.
+    /// </summary>
+    private static string EnsureHttpScheme(string url)
+    {
+        if (string.IsNullOrWhiteSpace(url))
+            return url;
+
+        url = url.Trim();
+        if (!url.StartsWith("http://", StringComparison.OrdinalIgnoreCase) &&
+            !url.StartsWith("https://", StringComparison.OrdinalIgnoreCase))
+        {
+            return "http://" + url;
+        }
+        return url;
+    }
+
+    /// <summary>
     /// Triggers a search in Sonarr for a TV series based on TVDB ID.
-    /// - Single episode (season > 0 AND episode > 0) = NO search
+    /// - Single episode (season > 0 AND episode > 0) = EpisodeSearch (if enabled)
     /// - Whole season (season > 0, episode = 0) = SeasonSearch
     /// - Whole show (season = 0, episode = 0) = SeriesSearch
     /// </summary>
-    public async Task<bool> TriggerSearchAsync(string sonarrUrl, string apiKey, int tvdbId, int seasonNumber = 0, int episodeNumber = 0)
+    public async Task<bool> TriggerSearchAsync(string sonarrUrl, string apiKey, int tvdbId, int seasonNumber = 0, int episodeNumber = 0, bool searchOnEpisode = false)
     {
         try
         {
@@ -49,18 +81,15 @@ public class SonarrService
                 return false;
             }
 
-            // Single episode reported = no search
-            if (seasonNumber > 0 && episodeNumber > 0)
-            {
-                _logger.LogInformation("Single episode issue reported (S{Season:D2}E{Episode:D2}) - skipping auto-search", seasonNumber, episodeNumber);
-                return true;
-            }
+            // Ensure URL has http:// scheme
+            sonarrUrl = EnsureHttpScheme(sonarrUrl);
 
             var httpClient = _httpClientFactory.CreateClient();
+            httpClient.Timeout = TimeSpan.FromSeconds(30);
             httpClient.DefaultRequestHeaders.Add("X-Api-Key", apiKey);
 
-            // Find series by TVDB ID
-            var seriesUrl = $"{sonarrUrl.TrimEnd('/')}/api/v3/series";
+            // Find series by TVDB ID using query parameter (more efficient)
+            var seriesUrl = $"{sonarrUrl.TrimEnd('/')}/api/v3/series?tvdbId={tvdbId}";
             var seriesResponse = await httpClient.GetAsync(seriesUrl);
 
             if (!seriesResponse.IsSuccessStatusCode)
@@ -70,8 +99,8 @@ public class SonarrService
             }
 
             var seriesContent = await seriesResponse.Content.ReadAsStringAsync();
-            var allSeries = JsonSerializer.Deserialize<List<SonarrSeries>>(seriesContent) ?? new List<SonarrSeries>();
-            var series = allSeries.FirstOrDefault(s => s.TvdbId == tvdbId);
+            var matchingSeries = JsonSerializer.Deserialize<List<SonarrSeries>>(seriesContent) ?? new List<SonarrSeries>();
+            var series = matchingSeries.FirstOrDefault();
 
             if (series == null)
             {
@@ -84,7 +113,33 @@ public class SonarrService
             object commandBody;
             string commandName;
 
-            if (seasonNumber > 0)
+            if (seasonNumber > 0 && episodeNumber > 0)
+            {
+                // Episode search - need to find the episode ID first
+                var episodesUrl = $"{sonarrUrl.TrimEnd('/')}/api/v3/episode?seriesId={series.Id}&seasonNumber={seasonNumber}";
+                var episodesResponse = await httpClient.GetAsync(episodesUrl);
+
+                if (!episodesResponse.IsSuccessStatusCode)
+                {
+                    _logger.LogWarning("Failed to fetch episodes. Status: {StatusCode}", episodesResponse.StatusCode);
+                    return false;
+                }
+
+                var episodesContent = await episodesResponse.Content.ReadAsStringAsync();
+                var episodes = JsonSerializer.Deserialize<List<SonarrEpisode>>(episodesContent) ?? new List<SonarrEpisode>();
+                var episode = episodes.FirstOrDefault(e => e.EpisodeNumber == episodeNumber);
+
+                if (episode == null)
+                {
+                    _logger.LogWarning("Episode S{Season:D2}E{Episode:D2} not found in Sonarr", seasonNumber, episodeNumber);
+                    return false;
+                }
+
+                commandName = "EpisodeSearch";
+                commandBody = new { name = commandName, episodeIds = new[] { episode.Id } };
+                _logger.LogInformation("Triggering episode search for S{Season:D2}E{Episode:D2} '{EpisodeTitle}'", seasonNumber, episodeNumber, episode.Title);
+            }
+            else if (seasonNumber > 0)
             {
                 // Season search
                 commandName = "SeasonSearch";
